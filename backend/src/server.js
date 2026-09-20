@@ -1,1 +1,22 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import Database from 'better-sqlite3';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dbPath = path.resolve(__dirname, '..', process.env.DB_FILE || './myshop.db');
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+db.exec(`CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,slug TEXT UNIQUE,price REAL NOT NULL DEFAULT 0,stock INTEGER NOT NULL DEFAULT 0,description TEXT DEFAULT '',image TEXT DEFAULT '',status TEXT NOT NULL DEFAULT 'active',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
+const app=express(); app.use(cors()); app.use(express.json({limit:'2mb'}));
+app.get('/api/health',(req,res)=>res.json({ok:true,brand:'MyShop BD'}));
+app.get('/api/products',(req,res)=>res.json({data:db.prepare('SELECT * FROM products ORDER BY id DESC').all()}));
+app.post('/api/products',(req,res)=>{const {name,slug,price=0,stock=0,description='',image='',status='active'}=req.body||{}; if(!name)return res.status(400).json({message:'name is required'}); const s=slug||name.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); try{const r=db.prepare('INSERT INTO products(name,slug,price,stock,description,image,status) VALUES(?,?,?,?,?,?,?)').run(name,s,price,stock,description,image,status); res.status(201).json({id:r.lastInsertRowid});}catch(e){res.status(409).json({message:e.message});}});
+app.get('/api/categories',(req,res)=>res.json({data:[]}));
+app.get('/api/brands',(req,res)=>res.json({data:[]}));
+app.get('/api/orders',(req,res)=>res.json({data:[]}));
+app.get('/api/settings',(req,res)=>res.json({data:{brand_name:'MyShop BD',brand_mark:'M'}}));
+app.listen(process.env.PORT||5000,()=>console.log(`MyShop BD API running on http://localhost:${process.env.PORT||5000}`));
